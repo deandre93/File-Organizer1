@@ -100,19 +100,19 @@ class MoverHandler(FileSystemEventHandler):
                 move_file(dest_dir_documents, entry, name)
                 logging.info(f"Moved document file: {name}")
 
-    def check_pdf_files(self, entry, name):  # * Checks all Document Files
+    def check_pdf_files(self, entry, name):  # * Checks all PDF Files
         for pdf_ext in pdf_extensions:
             if name.endswith(pdf_ext) or name.endswith(pdf_ext.upper()):
                 move_file(dest_dir_pdf, entry, name)
                 logging.info(f"Moved document file: {name}")  
 
-    def check_docs_files(self, entry, name):  # * Checks all Document Files
+    def check_docs_files(self, entry, name):  # * Checks all Doc & Docx Files
         for docs_ext in docs_extensions:
             if name.endswith(docs_ext) or name.endswith(docs_ext.upper()):
                 move_file(dest_dir_docs, entry, name)
                 logging.info(f"Moved document file: {name}")  
 
-    def check_exe_files(self, entry, name):  # * Checks all Document Files
+    def check_exe_files(self, entry, name):  # * Checks all Exe Files
         for exe_ext in exe_extensions:
             if name.endswith(exe_ext) or name.endswith(exe_ext.upper()):
                 move_file(dest_dir_exe, entry, name)
