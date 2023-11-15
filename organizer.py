@@ -1,153 +1,137 @@
-import os
-import shutil
-import glob
+from os import scandir, rename
+from os.path import splitext, exists, join
+from shutil import move
+from time import sleep
 
-DESKTOP_PATH = "C:\\Users\\deand\\Desktop"
-DOWNLOADS_PATH = "C:\\Users\\deand\\Downloads"
+import logging
 
-def get_files_by_type(directory, file_type):
-    pattern = os.path.join(directory, f"*.{file_type}")
-    files = glob.glob(pattern)
-    return files
-
-def list_files(files):
-    print("List of files in the directory:")
-    for idx, file_name in enumerate(files, start=1):
-        print(f"{idx}. {file_name}")
-
-def open_folder(folder_path):
-    if os.path.exists(folder_path):
-        os.startfile(folder_path)
-    else:
-        print("Folder does not exist.")
-
-def main():
-    
-    print("Select the source directory:")
-    print("1. Downloads")
-    print("2. Desktop")
-    source_choice = input("Enter the number corresponding to the source directory: ").lower()
-
-    if source_choice == '1':
-        source_path = DOWNLOADS_PATH
-    elif source_choice == '2':
-        source_path = DESKTOP_PATH
-    else:
-        print("Invalid choice. Exiting.")
-        return
-
-    file_type_choice = input("Enter 'all' for all files or enter any key to pick a specific file by type: ").lower()
-
-    if file_type_choice == 'all':
-        files = glob.glob(os.path.join(source_path, "*"))
-    else:
-        file_type = input("Enter the file type (e.g., txt, pdf): ").lower()
-        files = get_files_by_type(source_path, file_type)
-
-    while not files:
-        print("No files found in the specified directory.")
-        retry_choice = input("Do you want to re-enter the file type? (yes/no): ").lower()
-        if retry_choice == 'yes':
-            file_type = input("Enter the file type (e.g., txt, pdf): ").lower()
-            files = get_files_by_type(source_path, file_type)
-        else:
-            break
-
-    if not files:
-        print("Exiting.")
-        return
-
-    list_files(files)
-
-    all_files_choice = input("Do you want to perform the operation on all files? (yes/no): ").lower()
-
-    target_folder = ""  # Initialize target_folder here
-
-    if all_files_choice == 'yes':
-        perform_all_files_operation(files, source_path, all_files_choice, target_folder, DESKTOP_PATH)
-    # Inside the else block where a specific file is processed
-    else:
-        file_choice = int(input("Enter the number corresponding to the file you want to process: "))
-        selected_file = files[file_choice - 1]
-        operation = input("Choose operation (move/copy/rename/delete): ").lower()
-
-        # Updated line to handle target_folder
-        target_folder_input = input(f"Enter the target folder path (press Enter for 'Desktop'): ")
-
-        if target_folder_input:
-            target_folder = os.path.abspath(target_folder_input)
-        else:
-            target_folder = os.path.join(os.path.expanduser('~'), 'Desktop')
-
-        perform_file_operation(os.path.join(source_path, selected_file), operation, target_folder)
-
-# Modify the function definition to accept DESKTOP_PATH as a parameter
-def perform_all_files_operation(files, source_path, all_files_choice, target_folder, DESKTOP_PATH):
-    operation = input("Choose operation (move/copy/rename/delete) for all files: ").lower()
-
-    if operation not in ['move', 'copy', 'rename', 'delete']:
-        print("Invalid operation. Please choose move, copy, rename, or delete.")
-        return  # Exit the function if the operation is invalid
-
-    if all_files_choice == 'yes':
-        if not target_folder:
-            target_folder_input = input("Enter the target folder path (press Enter for Desktop): ")
-            target_folder = target_folder_input if target_folder_input else DESKTOP_PATH
-
-        if os.path.exists(target_folder) and os.path.isdir(target_folder):
-            for file_path in files:
-                perform_file_operation(file_path, operation, target_folder)
-            open_folder(target_folder)
-        else:
-            print("Invalid folder path. Operation aborted.")
-    else:
-        for file_path in files:
-            target_folder_input = input(f"Enter the target folder path for {file_path} (press Enter for Desktop): ")
-            current_target_folder = target_folder_input if target_folder_input else DESKTOP_PATH
-
-            # Updated the default target_folder value here
-            target_folder = os.path.abspath(current_target_folder)
-
-            if os.path.exists(target_folder) and os.path.isdir(target_folder):
-                perform_file_operation(file_path, operation, target_folder)
-            else:
-                print(f"Invalid folder path. Operation aborted for {file_path}.")
-
-def perform_file_operation(file_path, operation, target_folder):
-    if operation == 'delete':
-        confirm_delete = input(f"Are you sure you want to delete {file_path}? (yes/no): ").lower()
-        if confirm_delete == 'yes':
-            os.remove(file_path)
-            print(f"{file_path} deleted successfully.")
-        else:
-            print(f"{file_path} was not deleted.")
-    elif operation == 'rename':
-        new_name = input("Enter the new name for the file: ")
-        new_path = os.path.join(os.path.dirname(file_path), new_name)
-        os.rename(file_path, new_path)
-        print(f"{file_path} renamed to {new_path} successfully.")
-    elif operation in ['copy', 'move']:
-        if not target_folder:
-            print("Target folder path not provided. Operation aborted.")
-            return
-
-        if os.path.exists(target_folder) and os.path.isdir(target_folder):
-            if operation == 'copy':
-                shutil.copy(file_path, os.path.join(target_folder, os.path.basename(file_path)))
-                print(f"{file_path} copied successfully.")
-            elif operation == 'move':
-                shutil.move(file_path, os.path.join(target_folder, os.path.basename(file_path)))
-                print(f"{file_path} moved successfully.")
-            open_folder(target_folder)
-        else:
-            print(f"Invalid folder path: {target_folder}. Operation aborted.")
-    else:
-        print("Invalid operation. Please choose move, copy, rename, or delete.")
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 
+#folder to track e.g. Windows: "C:\\Users\\UserName\\Downloads"
+source_dir = r"C:\Users\deand\Downloads"
+dest_dir_music = r"C:\Users\deand\Desktop\Audio"
+dest_dir_video = r"C:\Users\deand\Desktop\Video"
+dest_dir_image = r"C:\Users\deand\Desktop\Images"
+dest_dir_documents =r"C:\Users\deand\Desktop\Other Docs"
+dest_dir_pdf = r"C:\Users\deand\Desktop\PDF"
+dest_dir_docs = r"C:\Users\deand\Desktop\Docs"
+dest_dir_exe = r"C:\Users\deand\Desktop\exe"
+
+
+image_extensions = [".jpg", ".jpeg", ".jpe", ".jif", ".jfif", ".jfi", ".png", ".gif", ".webp", ".tiff", ".tif", ".psd", ".raw", ".arw", ".cr2", ".nrw",
+                    ".k25", ".bmp", ".dib", ".heif", ".heic", ".ind", ".indd", ".indt", ".jp2", ".j2k", ".jpf", ".jpf", ".jpx", ".jpm", ".mj2", ".svg", ".svgz", ".ai", ".eps", ".ico"]
+
+video_extensions = [".webm", ".mpg", ".mp2", ".mpeg", ".mpe", ".mpv", ".ogg",
+                    ".mp4", ".mp4v", ".m4v", ".avi", ".wmv", ".mov", ".qt", ".flv", ".swf", ".avchd"]
+
+audio_extensions = [".m4a", ".flac", "mp3", ".wav", ".wma", ".aac"]
+
+document_extensions = [ ".odt", ".xls", ".xlsx", ".ppt", ".pptx", ".csv", ".zip"]
+
+exe_extensions= [".exe"]
+
+pdf_extensions = [".pdf"]  
+
+docs_extensions= [".doc", ".docx"]                     
+
+
+def make_unique(dest, name):
+    filename, extension = splitext(name)
+    counter = 1
+    # * IF FILE EXISTS, ADDS NUMBER TO THE END OF THE FILENAME
+    while exists(f"{dest}/{name}"):
+        name = f"{filename}({str(counter)}){extension}"
+        counter += 1
+
+    return name
+
+
+def move_file(dest, entry, name):
+    if exists(f"{dest}/{name}"):
+        unique_name = make_unique(dest, name)
+        oldName = join(dest, name)
+        newName = join(dest, unique_name)
+        rename(oldName, newName)
+    move(entry, dest)
+
+
+class MoverHandler(FileSystemEventHandler):
+    # ? THIS FUNCTION WILL RUN WHENEVER THERE IS A CHANGE IN "source_dir"
+    # ? .upper is for not missing out on files with uppercase extensions
+    def on_modified(self, event):
+        with scandir(source_dir) as entries:
+            for entry in entries:
+                name = entry.name
+                self.check_audio_files(entry, name)
+                self.check_video_files(entry, name)
+                self.check_image_files(entry, name)
+                self.check_document_files(entry, name)
+                self.check_pdf_files(entry,name)
+                self.check_docs_files(entry,name)
+                self.check_exe_files(entry,name)
+
+    def check_audio_files(self, entry, name):  # * Checks all Audio Files
+        for audio_extension in audio_extensions:
+            if name.endswith(audio_extension) or name.endswith(audio_extension.upper()):
+                if entry.stat().st_size < 10_000_000 or "SFX" in name:  # ? 10Megabytes
+                    dest = dest_dir_sfx
+                else:
+                    dest = dest_dir_music
+                move_file(dest, entry, name)
+                logging.info(f"Moved audio file: {name}")
+
+    def check_video_files(self, entry, name):  # * Checks all Video Files
+        for video_extension in video_extensions:
+            if name.endswith(video_extension) or name.endswith(video_extension.upper()):
+                move_file(dest_dir_video, entry, name)
+                logging.info(f"Moved video file: {name}")
+
+    def check_image_files(self, entry, name):  # * Checks all Image Files
+        for image_extension in image_extensions:
+            if name.endswith(image_extension) or name.endswith(image_extension.upper()):
+                move_file(dest_dir_image, entry, name)
+                logging.info(f"Moved image file: {name}")
+
+    def check_document_files(self, entry, name):  # * Checks all Document Files
+        for documents_extension in document_extensions:
+            if name.endswith(documents_extension) or name.endswith(documents_extension.upper()):
+                move_file(dest_dir_documents, entry, name)
+                logging.info(f"Moved document file: {name}")
+
+    def check_pdf_files(self, entry, name):  # * Checks all Document Files
+        for pdf_ext in pdf_extensions:
+            if name.endswith(pdf_ext) or name.endswith(pdf_ext.upper()):
+                move_file(dest_dir_pdf, entry, name)
+                logging.info(f"Moved document file: {name}")  
+
+    def check_docs_files(self, entry, name):  # * Checks all Document Files
+        for docs_ext in docs_extensions:
+            if name.endswith(docs_ext) or name.endswith(docs_ext.upper()):
+                move_file(dest_dir_docs, entry, name)
+                logging.info(f"Moved document file: {name}")  
+
+    def check_exe_files(self, entry, name):  # * Checks all Document Files
+        for exe_ext in exe_extensions:
+            if name.endswith(exe_ext) or name.endswith(exe_ext.upper()):
+                move_file(dest_dir_exe, entry, name)
+                logging.info(f"Moved document file: {name}")                                   
+
+
+# ! NO NEED TO CHANGE BELOW CODE
 if __name__ == "__main__":
-    while True:
-        main()
-        continue_choice = input("Do you want to perform another operation? (yes/no): ").lower()
-        if continue_choice != 'yes':
-            break
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s - %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
+    path = source_dir
+    event_handler = MoverHandler()
+    observer = Observer()
+    observer.schedule(event_handler, path, recursive=True)
+    observer.start()
+    try:
+        while True:
+            sleep(10)
+    except KeyboardInterrupt:
+        observer.stop()
+    observer.join()
