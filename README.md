@@ -28,7 +28,7 @@ This Python script allows users to organize and manage files in specified direct
 
 ## Example
 
-
+```
 python downloads-org.py
 ```
 
